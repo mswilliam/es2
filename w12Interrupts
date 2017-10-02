@@ -38,11 +38,10 @@
 
 #define PIN(x) (0x01 << (x))
 
-enum eState{Low = 0x00, Toggle = 0X01, stateMax = 0x02};
+enum eState{WaitOn = 0x00, Toggle = 0X01, WaitOff = 0x02, Low = 0X03, stateMax = 0x04};
 enum eInput{InputOff = 0x00, InputOn = 0x01, InputMAX = 0x02};
 
 struct TState {
-  void (*functionIn) (void); 
   void (*functionOut) (void); 
   enum eState Next[InputMAX];
 };
@@ -58,17 +57,15 @@ void InitPortA(void);
 void InitSysTickInterrupts(void);
 void ClearOutput(void);
 void ToggleOutput(void);
-void DoNothing(void);
 
 
-enum eState currentState = Low;
+enum eState currentState;
 Fsm fsm[stateMax] ={
-		{ClearOutput, DoNothing, {Low, Toggle}},
-		{DoNothing, ToggleOutput, {Toggle, Low}},
+		{ClearOutput, {WaitOn, Toggle}},
+		{ToggleOutput, {WaitOff, Toggle}},
+		{ToggleOutput, {WaitOff, Low}},
+		{ClearOutput, {WaitOn, Low}}
 };
-
-void DoNothing(void){
-}
 
 void InitPortA(void){
 	volatile unsigned long delay;
@@ -110,17 +107,15 @@ void SysTick_Handler(void){
 
 int main(void){
 	enum eInput input;
-	
+	currentState = WaitOn;
 	// activate grader and set system clock to 80 MHz
-  TExaS_Init(SW_PIN_PA3, HEADPHONE_PIN_PA2,ScopeOn); 
+  TExaS_Init(SW_PIN_PA3, HEADPHONE_PIN_PA2,ScopeOn);
   Sound_Init();         
   EnableInterrupts();   // enable after all initialization are done	
-	input = InputOff;
   while(1){
     // main program is free to perform other tasks
     // do not use WaitForInterrupt() here, it may cause the TExaS to crash
-	fsm[currentState].functionIn();
-	input = (enum eInput)(GPIO_PORTA_DATA_R & PIN(2));
-	currentState = fsm[currentState].Next[input];
+		input = (GPIO_PORTA_DATA_R & PIN(3)) ? InputOn : InputOff;
+		currentState = fsm[currentState].Next[input];
   }
 }
