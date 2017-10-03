@@ -45,7 +45,11 @@ struct TState {
   void (*functionOut) (void); 
   enum eState Next[InputMAX];
 };
-typedef struct TState Fsm;
+typedef struct TFsm{
+	struct TState transitionGraph[stateMax];
+	enum eState currentState;
+	enum eInput input;
+} Fsm;
 
 
 // basic functions defined at end of startup.s
@@ -58,13 +62,15 @@ void InitSysTickInterrupts(void);
 void ClearOutput(void);
 void ToggleOutput(void);
 
-
-enum eState currentState;
-Fsm fsm[stateMax] ={
-		{ClearOutput, {WaitOn, Toggle}},
-		{ToggleOutput, {WaitOff, Toggle}},
-		{ToggleOutput, {WaitOff, Low}},
-		{ClearOutput, {WaitOn, Low}}
+Fsm finalStateMachine = {
+	{
+		{ClearOutput,		{WaitOn, 	Toggle}	},
+		{ToggleOutput,	{WaitOff, Toggle}	},
+		{ToggleOutput,	{WaitOff, Low}		},
+		{ClearOutput,		{WaitOn, 	Low}		}
+	}, 
+	WaitOn,
+	InputOff
 };
 
 void InitPortA(void){
@@ -87,11 +93,11 @@ void InitSysTickInterrupts(void){
 }
 
 void ClearOutput(void){
-	GPIO_PORTA_DATA_R &= ~(PIN(2));
+	GPIO_PORTA_DATA_R &= ~(PIN(2)); // clear PAR
 }
 
 void ToggleOutput(void){
-	GPIO_PORTA_DATA_R ^= PIN(2);
+	GPIO_PORTA_DATA_R ^= PIN(2); //toggle PA2
 }
 
 // input from PA3, output from PA2, SysTick interrupts
@@ -102,20 +108,20 @@ void Sound_Init(void){
 
 // called at 880 Hz
 void SysTick_Handler(void){
-	fsm[currentState].functionOut();
+	(finalStateMachine.transitionGraph[finalStateMachine.currentState]).functionOut(); //call the toggleFunction or the clearFunction on the output depending of the current state
 }
 
 int main(void){
-	enum eInput input;
-	currentState = WaitOn;
 	// activate grader and set system clock to 80 MHz
   TExaS_Init(SW_PIN_PA3, HEADPHONE_PIN_PA2,ScopeOn);
   Sound_Init();         
   EnableInterrupts();   // enable after all initialization are done	
+	
+	finalStateMachine.currentState = WaitOn;
   while(1){
     // main program is free to perform other tasks
     // do not use WaitForInterrupt() here, it may cause the TExaS to crash
-		input = (GPIO_PORTA_DATA_R & PIN(3)) ? InputOn : InputOff;
-		currentState = fsm[currentState].Next[input];
+		finalStateMachine.input = (GPIO_PORTA_DATA_R & PIN(3)) ? InputOn : InputOff;
+		finalStateMachine.currentState = finalStateMachine.transitionGraph[finalStateMachine.currentState].Next[finalStateMachine.input];
   }
 }
