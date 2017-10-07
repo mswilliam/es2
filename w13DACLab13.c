@@ -13,15 +13,32 @@
 #include "Dac.h"
 #include "TExaS.h"
 
+const unsigned int reloadValue[4] = {9556, 8513, 7584, 6378};
  
 // basic functions defined at end of startup.s
 void DisableInterrupts(void); // Disable interrupts
 void EnableInterrupts(void);  // Enable interrupts
 void delay(unsigned long msec);
 
+unsigned char toPin(unsigned long value){
+	unsigned char result = 0x0F;
+	if (value >= 0x08){
+		result = 0x03;
+	}else if(value >= 0x04){
+		result = 0x02;
+	}else if(value >= 0x02){
+		result = 0x01;
+	}else if(value == 0x01){
+		result = 0x00;
+	}else{
+		result = 0x0F;
+	}
+	return result;
+}
 
 int main(void){ // Real Lab13 
-	unsigned char i;
+	unsigned long touch = 0x00;
+	unsigned char index = 0x00;
 	// for the real board grader to work 
 	// you must connect PD3 to your DAC output
   TExaS_Init(SW_PIN_PE3210, DAC_PIN_PB3210,ScopeOn); // activate grader and set system clock to 80 MHz
@@ -29,11 +46,15 @@ int main(void){ // Real Lab13
   Sound_Init(); // initialize SysTick timer and DAC
   Piano_Init();
   EnableInterrupts();  // enable after all initialization are done
-  while(1){                
-// input from keys to select tone
-		//Piano_In();
-       DAC_Out(i++ & 0x0F);
-       delay(10); // connect PD3 to DAC output
+  while(1){
+		touch = Piano_In();
+		index = toPin(touch);
+		if(index < 0x04)
+		{
+			Sound_Tone(reloadValue[index]);
+		}else{
+			Sound_Off();
+		}
   }
             
 }
@@ -50,5 +71,4 @@ void delay(unsigned long msec){
     msec--;
   }
 }
-
 
